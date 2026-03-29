@@ -1,0 +1,9 @@
+services:
+  gentoo:
+    image: gentoo/stage3:i686-ssemath-t64-openrc
+    container_name: binhostess
+    hostname: binhostess
+    volumes:
+      - ./binpkgs:/var/cache/binpkgs
+    stdin_open: true
+    tty: true
