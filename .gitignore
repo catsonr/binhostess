@@ -1,2 +1,11 @@
+# gentoo files & directories
+*.conf*
+var-lib-portage/
+var-cache-binpkgs/
+
+# docker
 gentoo/
+etc-portage/
+
+# c++ 
 build/

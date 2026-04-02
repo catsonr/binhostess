@@ -4,6 +4,8 @@ services:
     container_name: binhostess
     hostname: binhostess
     volumes:
-      - ./binpkgs:/var/cache/binpkgs
+      - ./etc-portage:/etc/portage
+      - ./var-lib-portage:/var/lib/portage
+      - ./var-cache-binpkgs:/var/cache/binpkgs
     stdin_open: true
     tty: true
