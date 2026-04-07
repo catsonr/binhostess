@@ -12,9 +12,14 @@ hence, "emerge syncing service."
 
 ## requirements
 
- - docker
+the client (target machine) requires:
+
  - rsync
  - python3 (or any static http site to host `var-cache-binpkgs/`
+
+ the server (faster machine) requires:
+
+ - docker
 
 ## usage
 
