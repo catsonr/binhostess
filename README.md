@@ -1,68 +1,65 @@
 # binhostess
 
 binhostess (**binhost** **e**merge **s**yncing **s**ervice) is a client-server service that allows
-gentoo users to emerge a package on a different machine (server), where the binary is then copied to
-the original target machine (client).
+gentoo users to emerge (install) a package first on a more power full machine (server), then copy
+the compiled binary to the target machine (client).
 
 gentoo's [binhost](https://wiki.gentoo.org/wiki/Gentoo_Binary_Host_Quickstart) already provides this
-functionality; binhostess sits on top of portage and keeps both machines synchronized and emerging
-for you!
+functionality; binhostess simply sits on top of portage and keeps both machines synchronized and
+emerging for you!
 
-hence, "emerge syncing service."
+hence, "**emerge syncing service.**"
 
 ## requirements
 
 the client (target machine) requires:
 
+ - a working gentoo install
  - rsync
  - python3 (or any static http site to host `var-cache-binpkgs/`
 
- the server (faster machine) requires:
+the server (faster machine) requires:
 
  - docker
+ - python3
+
+*note that the server need not be running gentoo!*
 
 ## usage
 
+### set
+
+**set** is not yet implemented. it is to be used to configure binhostess. see
+`/etc/portage/binhostess.conf`
+
+#### set fields
+
+`server-host` the user and ip for server. e.g.: `cassie@192.168.0.1`
+
+`server-path` the location for the gentoo docker container. e.g.: `~/.binhostess`
+
 binhostess needs to be both *synchronized* and *initialized* before being used.
 
-### sync.sh
+### sync
 
-`sync.sh` copies the `/etc/portage/` (and other related files) from `client` to `server`. if you
-haven't used binhostess in a while you can synchronize from the server
+**sync** copies `/etc/portage/` (directory), `/var/lib/portage/world`, and
+`/var/lib/portage/world_sets` (files) to the server. this allows the client and server's respective
+portages to be configured the same, meaning they both produce and use the same binaries!
 
-`server $ sh sync.sh user@client-ip`
+### init
 
-the server's gentoo instance now matches the client.
-
-### init.sh
-
-`init.sh` installs a gentoo instance into the directory `gentoo/`; containerized inside of docker.
+**init** installs a gentoo instance into the directory `gentoo/`; containerized inside of docker.
 here you can additionally emerge @world.
 
-**NOTE:** for now, init.sh assumes a very specific stage3. please replace the link in init.sh with
-your desired stage3 tar.gz. 
+## emerge
 
-## hosting
+to emerge a package, simply prepend `binhostess` to any given emerge command. e.g.:
 
-to host the server's compiled binaries in `var/cache/binpkgs`, simply run `sh host.sh`
+`binhostess emerge "--ask app-editors/vim"`
 
-on the client, please create `/etc/portage/binrepos.conf/binhostess` with the contents:
-```
-[binhostess]
-priority=1
-sync-uri=http://user@server-ip:8322
-location=/var/cache/binhost/binhostess
-verify-signature=false
-```
+**for now, you must wrap any emerge arguments in quotes. sorry!**
 
-## emerging
-
-to emerge a package, first emerge on the server
-
-`server $ docker compose exec gentoo emerge package`
-
-and then on the client
-
-`client $ emerge --getbinpkg package`
-
-the package is now emerged. hopefully much quicker than if it was compiled on client!
+this will first emerge on the serer, creating a binary per the client's configuration (like
+`/etc/portage/make.conf`). the server then opens an http server to host the binary, the client runs
+the emerge command, portage's binhost detects this server and installs the binary. the http server
+is then closed.
