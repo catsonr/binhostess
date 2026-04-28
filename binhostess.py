@@ -77,6 +77,11 @@ def repo_str() -> str:
 def repo():
     run(["sudo", "tee", "/etc/portage/binrepos.conf/binhostess.conf"], input=repo_str(), text=True, stdout=subprocess.DEVNULL)
 
+# TODO: for some reason http_server.terminate() doesnt seem to actually terminate...
+# and even a previous server is running, binhost is unable to see it. this temporarily fixes the issue
+def clear_port():
+    remote(f"fuser -k {PORT}/tcp 2>/dev/null", check=False)
+
 # --- subcommands ---
 
 # prints out the current binhostess config
@@ -89,7 +94,7 @@ def set(args):
     pass
 
 # syncs server with client. namely:
-# /etc/portage/ (excluding gnupg/ and binrepos.conf/binhostess.conf),
+# /etc/portage/ (excluding binrepos.conf/binhostess.conf),
 # /var/lib/portage/world, and 
 # /var/lib/portage/world_sets
 def sync(args):
@@ -102,7 +107,7 @@ def sync(args):
     print(f"[BINHOSTESS::sync] copying /etc/portage to {dest}/etc-portage ...")
     result = run([
         "rsync", "-avP", "--delete",
-        "--exclude=gnupg/",
+        #"--exclude=gnupg/",
         "--exclude=binrepos.conf/binhostess.conf",
         "--exclude=binhostess.conf",
         "/etc/portage/",
@@ -148,8 +153,16 @@ def sync(args):
     server_sync.wait()
 
 # creates gentoo docker container
+# WARN: assumes server_path actually exists!
 def init(args):
     conf = Conf.load()
+
+    # create conf.server_path here
+
+    print(f"[BINHOSTESS::init] copying docker-compose.yml to {conf.server_host}:{conf.server_path} ...")
+    run(["scp", "docker-compose.yml", f"{conf.server_host}:{conf.server_path}/"])
+    print(f"[BINHOSTESS::init] creating mounts to {conf.ip()} in {conf.server_path} as {conf.user()} ...")
+    remote("mkdir -p etc-portage var-lib-portage var-cache-binpkgs")
 
     answer = input("[BINHOSTESS::init] would you like to remove any existing docker containers? [y/n] ")
     if answer.lower() == "y" or answer.lower() == "yes":
@@ -164,16 +177,19 @@ def init(args):
 
     print("[BINHOSTESS::init] initialization complete!")
 
+# opens an binhost http server on server until the user exits (^C)
+def host(args):
+    clear_port()
+    print(f"[BINHOSTESS::host] opening http server on port {PORT}. ^C to close ...")
+    remote(f"python3 -m http.server {PORT} --directory var-cache-binpkgs")
+
 def emerge(args):
     conf = Conf.load()
 
     print(f"[BINHOSTESS::emerge] performing 'emerge {args.args}' on {conf.server_host} ...")
     remote(f"docker compose exec gentoo emerge {args.args}", check=False)
 
-    # TODO: for some reason http_server.terminate() doesnt seem to actually terminate...
-    # and even a previous server is running, binhost is unable to see it. this temporarily fixes the issue
-    if remote(f"fuser -k {PORT}/tcp 2>/dev/null", check=False).returncode == 0:
-        print(f"[BINHOSTESS::emerge] killed existing process at port {PORT} ...")
+    clear_port()
 
     print(f"[BINHOSTESS::emerge] opening binhost http server at {conf.ip()}:{PORT} ...")
     http_server = subprocess.Popen(
@@ -213,6 +229,7 @@ def main():
     sub.add_parser("set",  help="configure binhostess")
     sub.add_parser("sync", help="synchronize server with client")
     sub.add_parser("init", help="(re)installs gentoo docker image on server")
+    sub.add_parser("host", help="opens the binhost http server")
 
     emerge_parser = sub.add_parser("emerge", help="emerge on server and copy to client!")
     emerge_parser.add_argument("args", help="the arguments to give to both emerges")
@@ -231,6 +248,8 @@ def main():
         sync(args)
     elif args.command == "init":
         init(args)
+    elif args.command == "host":
+        host(args)
     elif args.command == "emerge":
         emerge(args)
     elif args.command == "exec":
